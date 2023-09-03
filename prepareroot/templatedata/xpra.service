@@ -1,0 +1,12 @@
+[Unit]
+Description=Start xpra server at boot after network is up
+After=network.target
+
+[Service]
+ExecStart=/usr/bin/xpra start --bind-tcp="0.0.0.0:7777,auth=password:value=pass" --daemon=no
+User=user
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
