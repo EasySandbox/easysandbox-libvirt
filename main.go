@@ -2,9 +2,10 @@ package main
 
 import (
 	"git.voidnet.tech/kev/easysandbox-livbirt/createlinkedclone"
-	"git.voidnet.tech/kev/easysandbox-livbirt/prepareroot"
-	"git.voidnet.tech/kev/easysandbox-livbirt/virtinstallargs"
 	"git.voidnet.tech/kev/easysandbox-livbirt/deletesandbox"
+	"git.voidnet.tech/kev/easysandbox-livbirt/prepareroot"
+	"git.voidnet.tech/kev/easysandbox-livbirt/shootbacklauncher"
+	"git.voidnet.tech/kev/easysandbox-livbirt/virtinstallargs"
 	"git.voidnet.tech/kev/easysandbox/sandbox"
 
 	"github.com/estebangarcia21/subprocess"
@@ -32,6 +33,16 @@ func pathExists(path string) (bool, error) {
 }
 
 var rootPreparedSempaphoreFile = "root-prepared"
+
+
+func prepVM(vmName string) error {
+	shootbacklauncher.StartShootbackMaster(vmName)
+	prepareRootErr := prepareroot.PrepareRoot(vmName)
+	if prepareRootErr != nil {
+		return fmt.Errorf("could not prepare root for %s: %w", vmName, prepareRootErr)
+	}
+	return shootbacklauncher.StartShootbackMaster(vmName)
+}
 
 func StartSandbox(name string) error {
 	conn, err := libvirt.NewConnect("qemu:///session")
@@ -66,9 +77,9 @@ func StartSandbox(name string) error {
 		return fmt.Errorf("failed to check for root status file for %s: %w", name, semaphoreExistsErr)
 	}
 	if !exists {
-		prepareRootErr := prepareroot.PrepareRoot(name)
-		if prepareRootErr != nil {
-			return fmt.Errorf("could not prepare root for %s: %w", name, prepareRootErr)
+		prepVMErr := prepVM(name)
+		if prepVMErr != nil {
+			return fmt.Errorf("failed to prepare VM for %s: %w", name, prepVMErr)
 		}
 	}
 
@@ -160,6 +171,6 @@ func CreateSandbox(sbox sandbox.SandboxInfo) error {
 
 }
 
-func DeleteSandbox(sandboxName string) error{
+func DeleteSandbox(sandboxName string) error {
 	return deletesandbox.DeleteSandbox(sandboxName)
 }
