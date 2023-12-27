@@ -35,13 +35,12 @@ func pathExists(path string) (bool, error) {
 var rootPreparedSempaphoreFile = "root-prepared"
 
 
-func prepVM(vmName string) error {
-	shootbacklauncher.StartShootbackMaster(vmName)
-	prepareRootErr := prepareroot.PrepareRoot(vmName)
-	if prepareRootErr != nil {
-		return fmt.Errorf("could not prepare root for %s: %w", vmName, prepareRootErr)
+func prepVM(vmName string) (error) {
+	_, vmPort, err := shootbacklauncher.StartShootbackMaster(vmName)
+	if err != nil {
+		return fmt.Errorf("could not prepare root for %s: %w", vmName, err)
 	}
-	return shootbacklauncher.StartShootbackMaster(vmName)
+	return prepareroot.PrepareRoot(vmName, vmPort)
 }
 
 func StartSandbox(name string) error {
