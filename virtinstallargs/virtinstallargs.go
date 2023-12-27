@@ -28,7 +28,7 @@ func GetVirtInstallArgsString(sandboxName string, args ...string) []string {
 		"--noreboot",
 	}
 	defaultArgs := map[string]string{
-		"--network":    "bridge=virbr0",
+		"--network":    "user",
 		"--memory":     "4096",
 		"--vcpus":      fmt.Sprintf("%d", runtime.NumCPU()),
 		"--os-variant": "linux2022",
