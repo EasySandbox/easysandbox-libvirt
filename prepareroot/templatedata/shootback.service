@@ -1,0 +1,12 @@
+[Unit]
+Description=Start shootback client at boot after network is up
+After=network.target
+
+[Service]
+ExecStart=/shootback/slaver.py -m {host_shootback_address} -t 127.0.0.1:7777
+User=root
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
