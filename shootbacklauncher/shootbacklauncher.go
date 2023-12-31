@@ -38,6 +38,9 @@ func StartShootbackMaster(sandboxName string) (string, string, error) {
 	xpraPortFilePath := filepath.Join(sandboxDir, "xpra-port")
 	vmPortFilePath := filepath.Join(sandboxDir, "vm-port")
 
+	os.Remove(xpraPortFilePath)
+	os.Remove(vmPortFilePath)
+
 	go func() {
 		subprocess.New(
 			masterFilePath,

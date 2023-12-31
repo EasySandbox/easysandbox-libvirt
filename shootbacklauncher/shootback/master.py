@@ -87,6 +87,10 @@ class Master(object):
 
         self.xpra_port_file, self.vm_port_file = port_files
 
+        pid_file = os.path.join(os.path.dirname(self.vm_port_file), "shootbackmaster.pid")
+        with open(pid_file, "w") as f:
+            f.write(str(os.getpid()))
+
         self.working_pool = working_pool or {}
 
         self.socket_bridge = SocketBridge()
