@@ -4,21 +4,31 @@ import (
 	"bytes"
 	_ "embed"
 	"fmt"
+	"net"
 	"os"
 
 	"github.com/estebangarcia21/subprocess"
 
 	"git.voidnet.tech/kev/easysandbox-livbirt/shootbacklauncher"
-	"git.voidnet.tech/kev/easysandbox/getourip"
 	"git.voidnet.tech/kev/easysandbox/sandbox"
 )
 
 //go:embed templatedata/shootback.service
 var shootbackShootbackServiceData []byte
 
-
 //go:embed templatedata/xpra.service
 var xpraSystemdServiceData []byte
+
+func getOurIP() (string, error) {
+	conn, err := net.Dial("udp", "1.1.1.1:80") // placeholder IP address, no network activity is actually done
+	if err != nil {
+		return "", err
+	}
+	defer conn.Close()
+
+	localAddr := conn.LocalAddr().(*net.UDPAddr)
+	return localAddr.IP.String(), nil
+}
 
 func PrepareRoot(sandboxName string, vmShootbackPort string) error {
 	targetRootFile := sandbox.SandboxInstallDir + sandboxName + "/root.qcow2"
@@ -29,7 +39,7 @@ func PrepareRoot(sandboxName string, vmShootbackPort string) error {
 		return fmt.Errorf("failed to generate password: %w", err)
 	}
 
-	hostIP, err := getourip.GetOurIP()
+	hostIP, err := getOurIP()
 	if err != nil {
 		return fmt.Errorf("faiiled to get host IP: %w", err)
 	}
@@ -110,6 +120,7 @@ func PrepareRoot(sandboxName string, vmShootbackPort string) error {
 		"--firstboot-command", "systemctl enable xpra.service",
 		"--firstboot-command", "systemctl start xpra.service",
 		"--firstboot-command", "systemctl enable shootback.service",
+		"--firstboot-command", "systemctl start shootback.service",
 		"--delete", "/etc/ssh/*_key",
 		"--delete", "/etc/ssh/*.pub",
 		"--hostname", sandboxName,

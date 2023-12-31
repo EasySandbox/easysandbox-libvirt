@@ -8,13 +8,13 @@ import (
 	"libvirt.org/go/libvirt"
 )
 
-func DeleteSandbox(sandboxName string) error {
+func DeleteLibvirtDomain(domainName string) error {
 	conn, err := libvirt.NewConnect("qemu:///session")
 	if err != nil {
 		return fmt.Errorf("error connecting to libvirt: %w", err)
 	}
 
-	sboxDomain, lookupError := conn.LookupDomainByName(sandboxName)
+	sboxDomain, lookupError := conn.LookupDomainByName(domainName)
 
 	if lookupError != nil {
 		lvErr := lookupError.(libvirt.Error)
@@ -27,11 +27,18 @@ func DeleteSandbox(sandboxName string) error {
 			return fmt.Errorf("error destroying libvirt sandbox domain: %w", destroyError)
 		}
 		domainUndefineError := sboxDomain.Undefine()
-		if domainUndefineError != nil{
+		if domainUndefineError != nil {
 			return fmt.Errorf("error undefining libvirt sandbox domain: %w", domainUndefineError)
 
 		}
 	}
+	return nil
+}
 
+func DeleteSandbox(sandboxName string) error {
+
+	if deleteLibvirtErr := DeleteLibvirtDomain(sandboxName); deleteLibvirtErr != nil {
+		return fmt.Errorf("error deleting libvirt sandbox: %w", deleteLibvirtErr)
+	}
 	return os.RemoveAll(sandbox.SandboxInstallDir + sandboxName)
 }

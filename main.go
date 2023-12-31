@@ -4,14 +4,15 @@ import (
 	"git.voidnet.tech/kev/easysandbox-livbirt/createlinkedclone"
 	"git.voidnet.tech/kev/easysandbox-livbirt/deletesandbox"
 	"git.voidnet.tech/kev/easysandbox-livbirt/prepareroot"
+	"git.voidnet.tech/kev/easysandbox-livbirt/sandboxrunning"
 	"git.voidnet.tech/kev/easysandbox-livbirt/shootbacklauncher"
 	"git.voidnet.tech/kev/easysandbox-livbirt/virtinstallargs"
+	"git.voidnet.tech/kev/easysandbox-livbirt/xpra"
 	"git.voidnet.tech/kev/easysandbox/sandbox"
 
 	"github.com/estebangarcia21/subprocess"
 	"libvirt.org/go/libvirt"
 
-	"errors"
 	"fmt"
 	"os"
 	"time"
@@ -21,21 +22,7 @@ func createDirectory(path string) (err error) {
 	return os.MkdirAll(path, 0700)
 }
 
-func pathExists(path string) (bool, error) {
-	_, err := os.Stat(path)
-	if err == nil {
-		return true, nil
-	}
-	if errors.Is(err, os.ErrNotExist) {
-		return false, nil
-	}
-	return false, err
-}
-
-var rootPreparedSempaphoreFile = "root-prepared"
-
-
-func prepVM(vmName string) (error) {
+func prepVM(vmName string) error {
 	_, vmPort, err := shootbacklauncher.StartShootbackMaster(vmName)
 	if err != nil {
 		return fmt.Errorf("could not prepare root for %s: %w", vmName, err)
@@ -43,19 +30,45 @@ func prepVM(vmName string) (error) {
 	return prepareroot.PrepareRoot(vmName, vmPort)
 }
 
+func createLibvirtDomain(sandboxName string, libvirtConn *libvirt.Connect, userProvidedArgs ...string) error {
+	if len(os.Args) < 3 {
+		return fmt.Errorf("usage: %s sandbox_name [virtinstall args]", os.Args[0])
+	} else if len(os.Args) > 3 {
+		userProvidedArgs = os.Args[3:]
+	}
+
+	virtInstallArgs := virtinstallargs.GetVirtInstallArgs(sandboxName, userProvidedArgs...)
+
+	// kind of a hack, because we could use the libvirt api, but that involves XML
+	if virtInstallCmdErr := subprocess.New("virt-install", virtInstallArgs).Exec(); virtInstallCmdErr != nil {
+		return fmt.Errorf("error running virt-install: %w", virtInstallCmdErr)
+	}
+	return nil
+}
+
 func StartSandbox(name string) error {
+	var userProvidedArgs = os.Args[3:]
 	conn, err := libvirt.NewConnect("qemu:///session")
 	if err != nil {
 		return fmt.Errorf("error connecting to libvirt: %w", err)
 	}
 
-	targetSandbox, lookupError := conn.LookupDomainByName(name)
-	if lookupError == nil {
-		isActive, isActiveErr := targetSandbox.IsActive()
-		if isActiveErr != nil {
-			return fmt.Errorf("error checking if sandbox is active: %w", isActiveErr)
+	startLibvirtDomain := func() error {
+		sboxDomain, err := conn.LookupDomainByName(name)
+		if err != nil {
+			return fmt.Errorf("error looking up sandbox in libvirt: %w", err)
 		}
-		if isActive {
+
+		if sandboxStartError := sboxDomain.Create(); sandboxStartError != nil {
+			return fmt.Errorf("error starting libvirt domain: %w", sandboxStartError)
+		}
+		return nil
+	}
+
+	if sandboxIsRunning, err := sandboxrunning.IsSandboxRunning(name, conn); err != nil {
+		return err
+	} else {
+		if sandboxIsRunning {
 			return &sandbox.SandboxIsRunningError{
 				Sandbox: name,
 				Msg:     "cannot start sandbox that is already running",
@@ -63,48 +76,20 @@ func StartSandbox(name string) error {
 		}
 	}
 
-	var userProvidedArgs []string
-	if len(os.Args) < 3 {
-		return fmt.Errorf("usage: %s sandbox_name [virtinstall args]", os.Args[0])
-	} else if len(os.Args) > 3 {
-		userProvidedArgs = os.Args[3:]
-	}
-	semaphorePath := fmt.Sprintf("%s/%s", sandbox.SandboxInstallDir+name, rootPreparedSempaphoreFile)
-
-	exists, semaphoreExistsErr := pathExists(semaphorePath)
-	if semaphoreExistsErr != nil {
-		return fmt.Errorf("failed to check for root status file for %s: %w", name, semaphoreExistsErr)
-	}
-	if !exists {
-		prepVMErr := prepVM(name)
-		if prepVMErr != nil {
-			return fmt.Errorf("failed to prepare VM for %s: %w", name, prepVMErr)
-		}
+	if errDeleteLibvirtDomain := deletesandbox.DeleteLibvirtDomain(name); errDeleteLibvirtDomain != nil {
+		return errDeleteLibvirtDomain
 	}
 
-	sboxDomain, lookupError := conn.LookupDomainByName(name)
-
-	if lookupError != nil {
-		lvErr := lookupError.(libvirt.Error)
-		if lvErr.Code != libvirt.ERR_NO_DOMAIN {
-			return fmt.Errorf("error looking up domain: %w", lookupError)
-		}
-		virtInstallArgs := virtinstallargs.GetVirtInstallArgs(name, userProvidedArgs...)
-
-		// kind of a hack, because we could use the libvirt api, but that involves XML
-		if virtInstallCmdErr := subprocess.New("virt-install", virtInstallArgs).Exec(); virtInstallCmdErr != nil {
-			return fmt.Errorf("error running virt-install: %w", virtInstallCmdErr)
-		}
-		sboxDomain, lookupError = conn.LookupDomainByName(name)
-		if lookupError != nil {
-			return fmt.Errorf("error looking up domain after libvirt definition: %w", lookupError)
-		}
+	prepVMErr := prepVM(name)
+	if prepVMErr != nil {
+		return fmt.Errorf("failed to prepare VM for %s: %w", name, prepVMErr)
 	}
 
-	if sandboxStartError := sboxDomain.Create(); sandboxStartError != nil {
-		return fmt.Errorf("error starting libvirt domain: %w", sandboxStartError)
+	if libvirtSetupErr := createLibvirtDomain(name, conn, userProvidedArgs...); libvirtSetupErr != nil {
+		return fmt.Errorf("error setting up libvirt domain: %w", libvirtSetupErr)
 	}
-	return nil
+
+	return startLibvirtDomain()
 }
 
 func StopSandbox(name string) error {
@@ -142,16 +127,13 @@ func StopSandbox(name string) error {
 	if domainUndefineErr := domain.Undefine(); domainUndefineErr != nil {
 		return fmt.Errorf("error undefining libvirt domain %s: %w", name, domainUndefineErr)
 	}
+	if killShootbackErr := shootbacklauncher.KillShootbackMaster(name); killShootbackErr != nil {
+		return fmt.Errorf("error killing shootback master: %w", killShootbackErr)
+	}
 	return nil
 }
 
 func CreateSandbox(sbox sandbox.SandboxInfo) error {
-	// create linked clone of root
-	// create linked clone of home template (parent changes do not propagate)
-	// libvirt install a machine with
-
-	//fmt.Println("Not implemented")
-
 	directoryCreateError := createDirectory(sandbox.SandboxInstallDir + sbox.Name)
 	if directoryCreateError != nil {
 		return fmt.Errorf("error creating sandbox directory: %w", directoryCreateError)
@@ -171,5 +153,14 @@ func CreateSandbox(sbox sandbox.SandboxInfo) error {
 }
 
 func DeleteSandbox(sandboxName string) error {
+	StopSandbox(sandboxName)
 	return deletesandbox.DeleteSandbox(sandboxName)
+}
+
+func GUIExecute(sandboxName string, command ...string) error {
+	return xpra.RunXpraCommand(sandboxName, command...)
+}
+
+func GUIAttach(sandboxName string) error {
+	return xpra.StartXpraClient(sandboxName)
 }
