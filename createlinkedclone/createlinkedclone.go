@@ -1,8 +1,8 @@
 package createlinkedclone
 
 import (
+	"git.voidnet.tech/kev/easysandbox-livbirt/templates"
 	"git.voidnet.tech/kev/easysandbox/sandbox"
-	"git.voidnet.tech/kev/easysandbox/templates"
 
 	"github.com/estebangarcia21/subprocess"
 

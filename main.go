@@ -6,6 +6,7 @@ import (
 	"git.voidnet.tech/kev/easysandbox-livbirt/prepareroot"
 	"git.voidnet.tech/kev/easysandbox-livbirt/sandboxrunning"
 	"git.voidnet.tech/kev/easysandbox-livbirt/shootbacklauncher"
+	"git.voidnet.tech/kev/easysandbox-livbirt/templates"
 	"git.voidnet.tech/kev/easysandbox-livbirt/virtinstallargs"
 	"git.voidnet.tech/kev/easysandbox-livbirt/xpra"
 	"git.voidnet.tech/kev/easysandbox/sandbox"
@@ -155,6 +156,14 @@ func CreateSandbox(sbox sandbox.SandboxInfo) error {
 func DeleteSandbox(sandboxName string) error {
 	StopSandbox(sandboxName)
 	return deletesandbox.DeleteSandbox(sandboxName)
+}
+
+func GetRootTemplatesList() ([]string, error) {
+	return templates.GetRootTemplatesList()
+}
+
+func GetHomeTemplatesList() ([]string, error) {
+	return templates.GetHomeTemplatesList()
 }
 
 func GUIExecute(sandboxName string, command ...string) error {
