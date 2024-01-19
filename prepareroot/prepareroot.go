@@ -114,7 +114,7 @@ func PrepareRoot(sandboxName string, vmShootbackPort string) error {
 		"--upload",
 		fmt.Sprintf("%s:%s", shootbackLibraryFile.Name(), "/shootback/common_func.py"),
 		"--chmod", "700:/shootback/slaver.py",
-		"--append-line", "/etc/fstab:/dev/sdb1 /user/ ext4 defaults 0 1",
+		//"--append-line", "/etc/fstab:/dev/sdb1 /user/ ext4 defaults 0 1",
 		"--append-line", fmt.Sprintf("/etc/hosts:%s hostsystem", hostIP),
 		"--firstboot-command", "systemctl daemon-reload",
 		"--firstboot-command", "systemctl enable xpra.service",
