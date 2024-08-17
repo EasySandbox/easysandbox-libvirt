@@ -18,12 +18,13 @@ var XPRA_BIN_NAME = "xpra"
 
 func getSandboxXPRAConnectionString(sandboxName string) (string, error) {
 
-	portFileData, portFileErr := os.ReadFile(filepath.Join(sandbox.SandboxInstallDir, sandboxName, "xpra-port"))
-	if portFileErr != nil {
-		return "", portFileErr
-	}
+	// portFileData, portFileErr := os.ReadFile(filepath.Join(sandbox.SandboxInstallDir, sandboxName, "xpra-port"))
+	// if portFileErr != nil {
+	// 	return "", portFileErr
+	// }
 
-	return fmt.Sprintf("tcp://127.0.0.1:%s", string(portFileData)), nil
+	//return fmt.Sprintf("tcp://127.0.0.1:%s", string(portFileData)), nil
+	return "vsock://4:8888", nil
 
 }
 
@@ -54,7 +55,7 @@ func StartXpraClient(sandboxName string) error {
 		return fmt.Errorf("error connecting to libvirt: %w", err)
 	}
 
-	for  {
+	for {
 		sandboxRunning, sandboxRunningErr := sandboxrunning.IsSandboxRunning(sandboxName, conn)
 		if sandboxRunningErr != nil {
 			return sandboxRunningErr

@@ -3,9 +3,9 @@ package main
 import (
 	"git.voidnet.tech/kev/easysandbox-livbirt/createlinkedclone"
 	"git.voidnet.tech/kev/easysandbox-livbirt/deletesandbox"
+	"git.voidnet.tech/kev/easysandbox-livbirt/getavailablevsockid"
 	"git.voidnet.tech/kev/easysandbox-livbirt/prepareroot"
 	"git.voidnet.tech/kev/easysandbox-livbirt/sandboxrunning"
-	"git.voidnet.tech/kev/easysandbox-livbirt/shootbacklauncher"
 	"git.voidnet.tech/kev/easysandbox-livbirt/templates"
 	"git.voidnet.tech/kev/easysandbox-livbirt/virtinstallargs"
 	"git.voidnet.tech/kev/easysandbox-livbirt/xpra"
@@ -23,19 +23,16 @@ func createDirectory(path string) (err error) {
 	return os.MkdirAll(path, 0700)
 }
 
-func prepVM(vmName string) error {
-	_, vmPort, err := shootbacklauncher.StartShootbackMaster(vmName)
-	if err != nil {
-		return fmt.Errorf("could not prepare root for %s: %w", vmName, err)
-	}
-	return prepareroot.PrepareRoot(vmName, vmPort)
-}
-
 func createLibvirtDomain(sandboxName string, libvirtConn *libvirt.Connect, userProvidedArgs ...string) error {
 	if len(os.Args) < 3 {
 		return fmt.Errorf("usage: %s sandbox_name [virtinstall args]", os.Args[0])
 	} else if len(os.Args) > 3 {
 		userProvidedArgs = os.Args[3:]
+	}
+
+	_, err := getavailablevsockid.GetAvailableVSockID(libvirtConn)
+	if err != nil {
+		panic(fmt.Errorf("failed to get available vsock id: %w", err))
 	}
 
 	virtInstallArgs := virtinstallargs.GetVirtInstallArgs(sandboxName, userProvidedArgs...)
@@ -52,6 +49,10 @@ func StartSandbox(name string) error {
 	conn, err := libvirt.NewConnect("qemu:///session")
 	if err != nil {
 		return fmt.Errorf("error connecting to libvirt: %w", err)
+	}
+
+	if prepareRootErr := prepareroot.PrepareRoot(name); prepareRootErr != nil {
+		return fmt.Errorf("error preparing root for sandbox: %w", prepareRootErr)
 	}
 
 	startLibvirtDomain := func() error {
@@ -79,11 +80,6 @@ func StartSandbox(name string) error {
 
 	if errDeleteLibvirtDomain := deletesandbox.DeleteLibvirtDomain(name); errDeleteLibvirtDomain != nil {
 		return errDeleteLibvirtDomain
-	}
-
-	prepVMErr := prepVM(name)
-	if prepVMErr != nil {
-		return fmt.Errorf("failed to prepare VM for %s: %w", name, prepVMErr)
 	}
 
 	if libvirtSetupErr := createLibvirtDomain(name, conn, userProvidedArgs...); libvirtSetupErr != nil {
@@ -128,9 +124,7 @@ func StopSandbox(name string) error {
 	if domainUndefineErr := domain.Undefine(); domainUndefineErr != nil {
 		return fmt.Errorf("error undefining libvirt domain %s: %w", name, domainUndefineErr)
 	}
-	if killShootbackErr := shootbacklauncher.KillShootbackMaster(name); killShootbackErr != nil {
-		return fmt.Errorf("error killing shootback master: %w", killShootbackErr)
-	}
+
 	return nil
 }
 

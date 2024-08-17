@@ -23,6 +23,7 @@ func GetVirtInstallArgsString(sandboxName string, args ...string) []string {
 		"--disk", homeFile + ",target.bus=sata",
 		"--import",
 		"--hvm",
+		"--vsock", "cid=4",
 		"--virt-type", "kvm",
 		"--install", "no_install=yes",
 		"--noreboot",

@@ -3,8 +3,8 @@ Description=Start xpra server at boot after network is up
 After=network.target
 
 [Service]
-ExecStart=/usr/bin/xpra start --bind-tcp="127.0.0.1:7777" --daemon=no
-User=user
+ExecStart=/usr/bin/xpra start --bind-vsock={VSOCK_ID}:8888 --daemon=no
+User=root
 Restart=always
 RestartSec=10
 
