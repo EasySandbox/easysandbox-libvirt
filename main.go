@@ -51,7 +51,7 @@ func StartSandbox(name string) error {
 		return fmt.Errorf("error connecting to libvirt: %w", err)
 	}
 
-	if prepareRootErr := prepareroot.PrepareRoot(name); prepareRootErr != nil {
+	if prepareRootErr := prepareroot.PrepareRoot(name, conn); prepareRootErr != nil {
 		return fmt.Errorf("error preparing root for sandbox: %w", prepareRootErr)
 	}
 

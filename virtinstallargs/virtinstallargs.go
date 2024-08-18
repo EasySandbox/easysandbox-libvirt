@@ -6,6 +6,7 @@ import (
 
 	"github.com/estebangarcia21/subprocess"
 
+	"git.voidnet.tech/kev/easysandbox-livbirt/xpra"
 	"git.voidnet.tech/kev/easysandbox/sandbox"
 )
 
@@ -17,13 +18,18 @@ func GetVirtInstallArgsString(sandboxName string, args ...string) []string {
 	rootCloneFile := sandbox.SandboxInstallDir + sandboxName + "/" + "root.qcow2"
 	homeFile := sandbox.SandboxInstallDir + sandboxName + "/" + "home.qcow2"
 
+	vsockID, err := xpra.GetSandboxVSockID(sandboxName)
+	if err != nil {
+		panic(fmt.Errorf("failed to get vsock id for sandbox:%w))", err))
+	}
+
 	mandatoryArgs := []string{
 		"--name", sandboxName,
 		"--disk", rootCloneFile + ",target.bus=sata",
 		"--disk", homeFile + ",target.bus=sata",
 		"--import",
 		"--hvm",
-		"--vsock", "cid=4",
+		"--vsock", "cid=" + vsockID,
 		"--virt-type", "kvm",
 		"--install", "no_install=yes",
 		"--noreboot",

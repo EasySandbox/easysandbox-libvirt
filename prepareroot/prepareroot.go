@@ -7,25 +7,44 @@ import (
 	"strings"
 
 	"github.com/estebangarcia21/subprocess"
+	"libvirt.org/go/libvirt"
 
+	"git.voidnet.tech/kev/easysandbox-livbirt/getavailablevsockid"
 	"git.voidnet.tech/kev/easysandbox/sandbox"
 )
 
 //go:embed templatedata/xpra.service
 var xpraSystemdServiceData []byte
+
 const xpraVsockPIDTag = "{VSOCK_ID}"
 
+const VSockIDFileName = "xpra-vsockID"
 
-func PrepareRoot(sandboxName string) error {
+func PrepareRoot(sandboxName string, libvirtConn *libvirt.Connect) error {
 	fmt.Println("Preparing root for sandbox", sandboxName)
 	targetRootFile := sandbox.SandboxInstallDir + sandboxName + "/root.qcow2"
 
 	xpraSystemdServiceFile, err := os.CreateTemp("", "xpra.service")
 
+	availableVsockIDForXpra, getAvailableVsockIDForXpraErr := getavailablevsockid.GetAvailableVSockID(libvirtConn)
+	if getAvailableVsockIDForXpraErr != nil {
+		return fmt.Errorf("failed to get available vsock ID for xpra: %w", getAvailableVsockIDForXpraErr)
+	}
+
+	if writeVsockIDErr := os.WriteFile(
+		fmt.Sprintf(
+			"%s/%s/%s",
+			sandbox.SandboxInstallDir,
+			sandboxName,
+			VSockIDFileName),
+		[]byte(fmt.Sprintf("%d", availableVsockIDForXpra)), 0644); writeVsockIDErr != nil {
+		return fmt.Errorf("failed to write vsock ID file: %w", writeVsockIDErr)
+	}
+
 	if _, err := xpraSystemdServiceFile.WriteString(
 		strings.Replace(
 			string(xpraSystemdServiceData),
-			xpraVsockPIDTag, fmt.Sprintf("%d", 4), 1)); err != nil {
+			xpraVsockPIDTag, fmt.Sprintf("%d", availableVsockIDForXpra), 1)); err != nil {
 		return fmt.Errorf("failed to write xpra systemd service file: %w", err)
 	}
 	defer func() {

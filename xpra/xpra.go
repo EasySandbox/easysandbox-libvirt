@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"git.voidnet.tech/kev/easysandbox-livbirt/prepareroot"
 	"git.voidnet.tech/kev/easysandbox-livbirt/sandboxrunning"
 	"git.voidnet.tech/kev/easysandbox/sandbox"
 	"github.com/estebangarcia21/subprocess"
@@ -16,15 +17,30 @@ import (
 
 var XPRA_BIN_NAME = "xpra"
 
+
+func GetSandboxVSockID(sandboxName string) (string, error) {
+
+	vsockID, readVsockIDErr := os.ReadFile(fmt.Sprintf(
+		"%s/%s/%s",
+		sandbox.SandboxInstallDir,
+		sandboxName,
+		prepareroot.VSockIDFileName))
+
+	if readVsockIDErr != nil {
+		return "", readVsockIDErr
+	}
+
+	return string(vsockID), nil
+}
+
 func getSandboxXPRAConnectionString(sandboxName string) (string, error) {
 
-	// portFileData, portFileErr := os.ReadFile(filepath.Join(sandbox.SandboxInstallDir, sandboxName, "xpra-port"))
-	// if portFileErr != nil {
-	// 	return "", portFileErr
-	// }
+	sandboxVsockID, err := GetSandboxVSockID(sandboxName)
+	if err != nil {
+		return "", err
+	}
 
-	//return fmt.Sprintf("tcp://127.0.0.1:%s", string(portFileData)), nil
-	return "vsock://4:8888", nil
+	return fmt.Sprintf("vsock://%s:8888", sandboxVsockID), nil
 
 }
 
@@ -44,7 +60,6 @@ func isXpraAttached(sandboxName string) (bool, error) {
 	if string(semaphoreContents) == connString {
 		return true, nil
 	}
-	os.Remove(attachSemaphorePath)
 	return false, nil
 }
 
