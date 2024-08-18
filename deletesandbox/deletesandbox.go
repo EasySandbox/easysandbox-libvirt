@@ -24,7 +24,16 @@ func DeleteLibvirtDomain(domainName string) error {
 	} else {
 		destroyError := sboxDomain.Destroy()
 		if destroyError != nil {
-			return fmt.Errorf("error destroying libvirt sandbox domain: %w", destroyError)
+			if destroyError.(libvirt.Error).Code != libvirt.ERR_OPERATION_INVALID {
+				return fmt.Errorf("error destroying libvirt sandbox domain: %w", destroyError)
+			}
+		}
+
+		// managed save is required to delete the domain, they only sometimes exist
+		managedSaveRemoveErr := sboxDomain.ManagedSaveRemove(0)
+		if managedSaveRemoveErr != nil {
+			return fmt.Errorf(
+				"error removing managed save of libvirt sandbox domain (requried for deletion): %w", managedSaveRemoveErr)
 		}
 		domainUndefineError := sboxDomain.Undefine()
 		if domainUndefineError != nil {
